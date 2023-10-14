@@ -59,6 +59,7 @@ private:
 	GLFWwindow* window;
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debugMessenger;
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice device;
 	VkQueue graphicsQueue;
 
@@ -72,6 +73,7 @@ private:
 		createInstance();
 		setUpDebugMessenger();
 		pickPhysicalDevice();
+		createLogicalDevice();
 	}
 	void createInstance() {
 		if (enableValidationLayers && !checkValidationlayerSupport()) {
@@ -122,7 +124,6 @@ private:
 	}
 
 	void pickPhysicalDevice() {
-		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 		uint32_t deviceCount = 0;
 		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
@@ -146,8 +147,6 @@ private:
 		else {
 			throw std::runtime_error("failled to find a suitable GPU");
 		}
-
-		createLogicalDevice(physicalDevice);
 	}
 
 	int rateDeviceSuitability(VkPhysicalDevice device) {
@@ -213,7 +212,7 @@ private:
 		return indices;
 	}
 
-	void createLogicalDevice(VkPhysicalDevice physicalDevice) {
+	void createLogicalDevice() {
 		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
 		VkDeviceQueueCreateInfo queueCreateInfo{};
