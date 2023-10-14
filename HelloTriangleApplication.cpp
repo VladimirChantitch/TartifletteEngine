@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
+#include <map>
+#include <optional>
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -67,6 +69,7 @@ private:
 	void initVulkan() {
 		createInstance();
 		setUpDebugMessenger();
+		pickPhysicalDevice();
 	}
 	void createInstance() {
 		if (enableValidationLayers && !checkValidationlayerSupport()) {
@@ -114,6 +117,96 @@ private:
 		uint32_t extensionCount = 0;
 		std::vector<VkExtensionProperties> extensions(glfwExtensionCount);
 		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+	}
+
+	void pickPhysicalDevice() {
+		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+		uint32_t deviceCount = 0;
+		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+		if (deviceCount == 0) {
+			throw std::runtime_error("failled to find GPUs with vulkan support");
+		}
+
+		std::vector<VkPhysicalDevice> devices(deviceCount);
+		vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+		std::multimap <int, VkPhysicalDevice> candidates;
+
+		for (const auto& device : devices) {
+			int score = rateDeviceSuitability(device);
+			candidates.insert(std::make_pair(score, device));
+		}
+
+		if (candidates.rbegin()->first > 0) {
+			physicalDevice = candidates.rbegin()->second;
+		}
+		else {
+			throw std::runtime_error("failled to find a suitable GPU");
+		}
+	}
+
+	int rateDeviceSuitability(VkPhysicalDevice device) {
+
+		VkPhysicalDeviceProperties deviceProperties;
+		vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+		VkPhysicalDeviceFeatures deviceFeatures;
+		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+		int score = 0;
+
+		if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+			score += 1000;
+		}
+
+		score += deviceProperties.limits.maxImageDimension2D;
+
+		QueueFamilyIndices indices = findQueueFamily(device);
+
+		if (!indices.isComplete()) {
+			return 0;
+		}
+
+		if (!deviceFeatures.geometryShader) {
+			return 0;
+		}
+
+		return score;
+	}
+	
+	struct QueueFamilyIndices
+	{
+		std::optional<uint32_t> graphicsFamily;
+
+		bool isComplete() {
+			return graphicsFamily.has_value();
+		}
+	};
+
+	QueueFamilyIndices  findQueueFamily(VkPhysicalDevice device) {
+		QueueFamilyIndices  indices;
+
+		uint32_t queueFamilyCount;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+		int i = 0;
+		for (const auto& queueFamily : queueFamilies) {
+			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+				indices.graphicsFamily = i;
+			}
+
+			if (indices.isComplete()) {
+				break;
+			}
+
+			i++;
+		}
+
+		return indices;
 	}
 
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
